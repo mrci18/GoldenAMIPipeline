@@ -51,19 +51,6 @@
             "Default":"goldenAMICrossAccountRole",
             "Description": "Cross account role suffix for managing Golden AMI metadata Parameters in child account(s). This role needs to exist in each account specified in MetadataJSON parameter."
         },
-        "InsightvmUsername":{
-            "Type":"String",
-            "Description": "Username used to create/scan/delete insightvm site, "
-        },
-        "InsightvmPassword":{
-            "Type": "String",
-            "NoEcho": "true",
-            "Description": "Password of the InsightvmUsername parameter"
-        },
-        "InsightvmEngineID":{
-            "Type": "Number",
-            "Description": "The engine ID used to scan engine"
-        },
         "VPC":{
             "Type": "AWS::EC2::VPC::Id",
             "Description": "The VPC ID of env that this will be launched in"
@@ -881,13 +868,6 @@
                         ]
                     }
                 },
-                "Environment": {
-                    "Variables": {
-                        "INSIGHTVM_USERNAME": { "Fn::Sub": "${InsightvmUsername}" },
-                        "INSIGHTVM_PASSWORD": { "Fn::Sub": "${InsightvmPassword}" },
-                        "INSIGHTVM_ENGINE_ID": { "Fn::Sub": "${InsightvmEngineID}" }
-                    }
-                },
                 "Runtime": "python3.6", 
                 "Timeout": 300,
                 "Handler": "index.lambda_handler",
@@ -1014,13 +994,6 @@
                                 "    return \"Done\""
                             ]
                         ]
-                    }
-                },
-                "Environment": {
-                    "Variables": {
-                        "INSIGHTVM_USERNAME": { "Fn::Sub": "${InsightvmUsername}" },
-                        "INSIGHTVM_PASSWORD": { "Fn::Sub": "${InsightvmPassword}" },
-                        "INSIGHTVM_ENGINE_ID": { "Fn::Sub": "${InsightvmEngineID}" }
                     }
                 },
                 "Runtime": "python3.6",

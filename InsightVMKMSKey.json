@@ -1,0 +1,90 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": " This cloudformation template creates resources required to set up a golden ami pipeline.(fdp-1o82smtoh)",
+    "Parameters": {
+        "KMSAdmin": {
+            "Type": "String",
+            "Description": "User launching this CFT. User will be included in kms policy"
+        }
+    },
+    "Resources": {
+        "DefaultKMSKey": {
+            "Type": "AWS::KMS::Key",
+            "Properties": {
+            "Description": "KMS Key used for code build",
+            "EnableKeyRotation": true,
+            "KeyPolicy": {
+                "Id": "InsightVMKMSPolicy",
+                "Version": "2012-10-17",
+                "Statement": [
+                {
+                    "Sid": "Enable IAM User Permissions",
+                    "Effect": "Allow",
+                    "Principal": {
+                    "AWS": { "Fn::Join": ["", ["arn:aws:iam::" , { "Ref": "AWS::AccountId"}, ":root"]]}
+                    
+                    },
+                    "Action": "kms:*",
+                    "Resource": "*"
+                },
+                {
+                    "Sid": "Allow access for Key Administrators",
+                    "Effect": "Allow",
+                    "Principal": {
+                    "AWS": { "Fn::Join": ["", ["arn:aws:iam::" , { "Ref": "AWS::AccountId"}, ":user/", {"Ref": "KMSAdmin"}]]}
+                    },
+                    "Action": [
+                        "kms:Create*",
+                        "kms:Describe*",
+                        "kms:Enable*",
+                        "kms:List*",
+                        "kms:Put*",
+                        "kms:Update*",
+                        "kms:Revoke*",
+                        "kms:Disable*",
+                        "kms:Get*",
+                        "kms:Delete*",
+                        "kms:TagResource",
+                        "kms:UntagResource",
+                        "kms:ScheduleKeyDeletion",
+                        "kms:CancelKeyDeletion"
+                    ],
+                    "Resource": "*"
+                }
+                ]
+            },
+            "Tags": [
+                {
+                "Key": "Team",
+                "Value": "Security"
+                }
+            ]
+            }
+        },
+        "KMSAlias": {
+            "Type": "AWS::KMS::Alias",
+            "Properties": {
+            "AliasName": "alias/InsightVM",
+            "TargetKeyId": {"Ref": "DefaultKMSKey"}
+            }
+        }
+    },
+    "Outputs": {
+        "DefaultKMSID": {
+            "Description": "The key ID of default KMS key",
+            "Value": {
+                "Ref": "DefaultKMSKey"
+            }
+        },
+        "DefaultKMSArn": {
+            "Description": "The arn value of the default KMS key",
+            "Value": {
+                "Fn::GetAtt": ["DefaultKMSKey", "Arn"]
+            },
+            "Export": 
+                {
+                    "Name": "InsightVMKMSKeyArn"
+                }
+        }
+    }
+}

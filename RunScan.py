@@ -1,106 +1,102 @@
 import urllib3
 import boto3
 import json
-import os
 import ast
-import requests
 import traceback
 
-username = os.environ["INSIGHTVM_USERNAME"]
-password = os.environ["INSIGHTVM_PASSWORD"]
-engine_id = os.environ["INSIGHTVM_ENGINE_ID"]
-BASE_URL = "https://insightvm.matson.com"
-GOLDEN_SCAN_CREDENTIAL_NAME = 'GoldenAMI'
 
+class InsightVMScanner:
+    def __init__(self):
+        self.BASE_URL = "https://insightvm.matson.com"
+        self.username = self.get_ssm_params("INSIGHTVM_USERNAME")
+        self.password = self.get_ssm_params("INSIGHTVM_PASSWORD")
+        self.engine_id = self.get_ssm_params("INSIGHTVM_ENGINE_ID")
 
-def create_site(engine_id='', site_name='', instance_ip=''):
-    data =    {
-        "description": "GoldenAMI API Test",
-        "engineId": engine_id,
-        "importance": "normal",
-        "name": site_name,
-        "scan": {
-        "assets": {
-            "includedTargets": {
-                "addresses": [
-                    instance_ip
-                ]
+    def get_ssm_params(self, ssm_param):
+        print(f"SSMParam: {ssm_param}")
+        ssm = boto3.client('ssm')
+        response = ssm.get_parameters(
+            Names=[ssm_param],WithDecryption=True
+        )
+        for parameter in response['Parameters']:
+            return parameter['Value']
+
+    def format_request_params(self, request_type, url_suffix, data):
+        url = self.BASE_URL + url_suffix
+        
+        if data:
+            encoded_data = json.dumps(data).encode('utf-8')
+        else:
+            encoded_data = data
+
+        headers = urllib3.util.make_headers(basic_auth=f'{self.username}:{self.password}')
+        headers['Content-Type'] = 'application/json'
+
+        return url, encoded_data, headers
+
+    def custom_request(self, request_type='GET', url_suffix='', data=None):
+        url, encoded_data, headers = self.format_request_params(request_type, url_suffix, data)
+
+        # Send request
+        http = urllib3.PoolManager()
+        r = http.request(request_type, url, body=encoded_data, headers=headers)
+
+        status = r.status
+        b_results = r.data
+        results = ast.literal_eval(b_results.decode('utf-8'))
+        
+        return status, results
+
+    
+    def create_site(self, site_name='', instance_ips=[]):
+        data =    {
+            "description": "GoldenAMI API",
+            "engineId": self.engine_id,
+            "importance": "normal",
+            "name": site_name,
+            "scan": {
+            "assets": {
+                "includedTargets": {
+                    "addresses": instance_ips
+                }
+            },
+            "scanTemplateId": "full-audit"
             }
-        },
-        "scanTemplateId": "full-audit"
         }
-    }
 
-    url = BASE_URL + '/api/3/sites'
-    headers = urllib3.util.make_headers(basic_auth=f'{username}:{password}')
-    headers['Content-Type'] = 'application/json'
-    response = requests.post(url=url, json=data, headers=headers, verify=False)
+        status, results = self.custom_request(request_type='POST', url_suffix='/api/3/sites', data=data)
 
-    json_response = json.loads(response.text)
-    if not response.status_code == 201:
-        raise SystemError(json_response['message'])
+        if not status == 201:
+            raise SystemError(results['message'])
 
-    dict_r = ast.literal_eval(response.text)
-    site_id = dict_r['id']
-    print(f"Site was created with site ID: {site_id}") 
+        site_id = results['id']
+        print(f"Site was created with site ID: {site_id}") 
 
-    return site_id
+        return site_id
 
-def get_golden_ami_credential_id():
-    url = BASE_URL + '/api/3/shared_credentials'
-    headers = urllib3.util.make_headers(basic_auth=f'{username}:{password}')
-    headers['Content-Type'] = 'application/json'
-    response = requests.get(url=url, headers=headers, verify=False)
+    def start_scan(self, site_id):
+        status, results = self.custom_request(request_type='POST', url_suffix=f'/api/3/sites/{site_id}/scans')
 
-    json_response = json.loads(response.text)
-    if not response.status_code == 200:
-        raise SystemError(json_response['message'])
+        if not status == 201:
+            raise SystemError(results['message'])
 
-    dict_r = ast.literal_eval(response.text)
-    resources = dict_r['resources']
+        scan_id = results['id']
 
-    for resource in resources:
-        if resource['name'] == GOLDEN_SCAN_CREDENTIAL_NAME:
-            return resource['id']
+        print(f"Scan started with scan ID: {scan_id}")
+        return scan_id
 
-    
-def assign_shared_credential(site_id):
-    credential_id = get_golden_ami_credential_id()
-    url = BASE_URL + f'/api/3/sites/{site_id}/shared_credentials/{credential_id}/enabled'
-    headers = urllib3.util.make_headers(basic_auth=f'{username}:{password}')
-    headers['Content-Type'] = 'application/json'
+    def main(self, site_name='', instance_ips=[]):
+        """This lambda assumes that sites created will automically have shared credentials needed enabled on insightvm console"""
+        site_id = self.create_site(site_name=site_name, instance_ips=instance_ips)
+        self.start_scan(site_id)
 
-    response = requests.put(url=url, headers=headers, verify=False, json="true")
-    json_response = json.loads(response.text)
-
-    if not response.status_code == 200:
-        raise SystemError(json_response['message'])
-
-    print(f"Shared credential ID: {credential_id} has been assigned to site ID: {site_id}")
-
-def start_scan(site_id):
-    url = BASE_URL + f'/api/3/sites/{site_id}/scans'
-    headers = urllib3.util.make_headers(basic_auth=f'{username}:{password}')
-    response = requests.post(url=url, headers=headers, verify=False)
-    dict_r = ast.literal_eval(response.text)
-    scan_id = dict_r['id']
-
-    return scan_id
-
-def delete_site(site_id):
-    url = BASE_URL + f'/api/3/sites/{site_id}'
-    headers = urllib3.util.make_headers(basic_auth=f'{username}:{password}')
-    response = requests.delete(url=url, headers=headers, verify=False)
-    json_response = json.loads(response.text)
-    if not response.status_code == 200:
-        raise SystemError(json_response['message'])
-    
-    print(f"Site {site_id} has been deleted")
+        return site_id
 
 def get_golden_instance_ip(instance_id):
     client = boto3.client('ec2')
     response = client.describe_instances(InstanceIds=[instance_id])
     golden_instance_ip = response['Reservations'][0]['Instances'][0]['PrivateIpAddress']
+
     print(golden_instance_ip)
     return golden_instance_ip
 
@@ -117,9 +113,8 @@ def lambda_handler(event, context=''):
 
     try:
         golden_ip = get_golden_instance_ip(instance_id)
-        site_id = create_site(engine_id=engine_id, site_name=paramName, instance_ip=golden_ip)
-        assign_shared_credential(site_id)
-        start_scan(site_id)
+
+        site_id = InsightVMScanner().main(site_name=paramName, instance_ips=[golden_ip])
 
         link=  f"Link - https://insightvm.matson.com/site.jsp?siteid={site_id}"
 
