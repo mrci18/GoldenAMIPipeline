@@ -5,8 +5,7 @@ function deploy_kms(){
         --template-file ${2} \
         --stack-name ${1} \
         --parameter-overrides \
-            Service=${service} \
-            Team=${team} User=${username}
+            KMSAdmin=${username}
 }
 
 function set_secure_ssm(){
@@ -24,29 +23,75 @@ function set_ssm(){
         --description "${4}" \
         --overwrite
 }
+
+function deploy_bucket(){
+    echo -e "\n\nDeploying s3 bucket..."
+    aws cloudformation deploy \
+        --template-file ./ConfigBucket.json \
+        --stack-name GoldenAMIConfigBucket
+}
+
+function deploy_pipeline(){
+    echo -e "\n\nDeploying AMI PipelineStack..."
+    aws cloudformation deploy \
+        --template-file ./final.json \
+        --stack-name GoldenAMIPipeline \
+        --parameter-overrides \
+            ApproverUserIAMARN=${approverARN} \
+            EmailID=${emailID} \
+            MetadataJSON='{"Account_ID_1":"region_1,region_2"}' \
+            VPC=${vpcID} \
+            buildVersion="1" \
+            continuousInspectionFrequency="rate(30 days)" \
+            instanceType="t2.large" \
+            productName="ProductName-ProductVersion" \
+            productOSAndVersion="OperatingSystemName-OperatingSystemVersion" \
+            roleName="goldenAMICrossAccountRole" \
+            subnetPrivate=${subnetPrivate} \
+        --s3-bucket $(aws cloudformation describe-stacks --stack-name GoldenAMIConfigBucket --query "Stacks[].Outputs[].OutputValue" --output text) \
+        --capabilities CAPABILITY_NAMED_IAM
+    echo -e "\nCheck Codepipeline to view the status of deployment..."
+    echo -e "Wait until script is fully finished executing..."
+}
+
 # Global variables
 team="Security"
 message="INFO: You are about to input sensitive data; your input will not be echo'd back to the terminal"
 
 # KMS config
-kmsStack="InsightVMKMS"
-read -p "AWS username running this script (e.g. bob@matson.com): " username
+# kmsStack="InsightVMKMS"
+# read -p "AWS username to administer the KMS key (e.g. bob@matson.com): " username
 
-# InsightVM API user config
-insightvmUser=$(echo INSIGHTVM_USERNAME)
-insightvmPass=$(echo INSIGHTVM_PASSWORD)
-insightvmEngine=$(echo INSIGHTVM_ENGINE_ID)
-echo -e "\n${message}"
-read -sp "The insightvm API username: " apiUser
+# # InsightVM API user config
+# insightvmUser=$(echo INSIGHTVM_USERNAME)
+# insightvmPass=$(echo INSIGHTVM_PASSWORD)
+# insightvmEngine=$(echo INSIGHTVM_ENGINE_ID)
+# echo -e "\n${message}"
+# read -sp "Insightvm API username: " apiUser
 
-echo -e "\n${message}"
-read -sp "The password of the insightvm user: " apiPass
+# echo -e ""
+# read -sp "Insightvm API password: " apiPass
+
+# echo -e "\n"
+# read -p "The engine ID used to as the scanner: " engineID
+
+#Pipeline config
+echo -e ""
+read -p "IAM user ARN of the Golden AMI approver. The approver must have AmazonSSMAutomationApproverAccess policy associated with it's IAM Profile: " approverARN
 
 echo -e ""
-read -p "The engine ID used to as the scanner" engineID
+read -p "Your email ID for receiving Inspector assessment results and golden AMI creation notification: " emailID
+
+echo -e ""
+read -p "The VPC ID of env that this will be launched in: " vpcID
+
+echo -e ""
+read -p "Subnet ID: " subnetPrivate
 
 # Run functions
-deploy_kms ${kmsStack} ./InsightVMKMSKey.json
-set_secure_ssm  ${insightvmUser} ${apiUser} ${kmsStack}
-set_secure_ssm ${insightvmPass} ${apiPass} ${kmsStack}
-set_ssm ${insightvmPass} ${engineID} "String" "The engine ID used to as the scanner"
+# deploy_kms ${kmsStack} ./InsightVMKMSKey.json
+# set_secure_ssm  ${insightvmUser} ${apiUser} ${kmsStack}
+# set_secure_ssm ${insightvmPass} ${apiPass} ${kmsStack}
+# set_ssm ${insightvmEngine} ${engineID} "String" "The engine ID used to as the scanner"
+# deploy_bucket
+deploy_pipeline

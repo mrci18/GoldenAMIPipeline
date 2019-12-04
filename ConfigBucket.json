@@ -1,0 +1,33 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": " This cloudformation template creates resources required to set up a golden ami pipeline.(fdp-1o82smtoh)",
+    "Resources": {
+        "GoldenAMIConfigBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "VersioningConfiguration": {
+                    "Status": "Enabled"
+                },
+                "BucketEncryption":
+                {
+                "ServerSideEncryptionConfiguration" : [{
+                "ServerSideEncryptionByDefault" : {"SSEAlgorithm":"AES256"}
+            }]
+            }
+
+            }
+        }
+    },
+    "Outputs": {
+        "GoldenAMIBucket": {
+            "Description": "The bucket name",
+            "Value": {
+                "Ref": "GoldenAMIConfigBucket"
+            },
+            "Export": 
+                {
+                    "Name": "GoldenAMIConfigBucket"
+                }
+        }
+    }
+}   
