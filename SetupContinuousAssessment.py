@@ -107,6 +107,9 @@ def lambda_handler(event, context):
     amisParamName = event['AMIsParamName']
     instanceType = event['instanceType']
     region=os.environ['AWS_DEFAULT_REGION']
+    subnet_id = os.environ['PRIVATE_SUBNET']
+    sg_id = os.environ['SECURITY_GROUP_ID']
+    sfn_arn = os.environ['STEP_FUNCTION_ARN']
     ec2 = boto3.client('ec2',region)
     ssm = boto3.client('ssm',region)
     sfn = boto3.client('stepfunctions')
@@ -119,9 +122,9 @@ def lambda_handler(event, context):
         if 'Tags' in images['Images'][0]:
             tags = images['Images'][0]['Tags']
             tags.append({'Key': 'continuous-assessment-instance', 'Value': 'true'})
-            response = ec2.run_instances(ImageId=entry,SubnetId='subnet-07904fd190b40c64c',SecurityGroupIds=['sg-01cc53c9994b04649'],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': tags}])
+            response = ec2.run_instances(ImageId=entry,SubnetId=subnet_id,SecurityGroupIds=[sg_id],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': tags}])
         else:
-            response = ec2.run_instances(ImageId=entry,SubnetId='subnet-07904fd190b40c64c',SecurityGroupIds=['sg-01cc53c9994b04649'],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': [{'Key': 'continuous-assessment-instance', 'Value': 'true'},{'Key': 'AMI-Type', 'Value': 'Golden'}]}])
+            response = ec2.run_instances(ImageId=entry,SubnetId=subnet_id,SecurityGroupIds=[sg_id],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': [{'Key': 'continuous-assessment-instance', 'Value': 'true'},{'Key': 'AMI-Type', 'Value': 'Golden'}]}])
 
         private_ip = response['Instances'][0]['InstanceId']['PrivateIpAddress']
         instance_ips.append(private_ip)
@@ -136,7 +139,6 @@ def lambda_handler(event, context):
     ssm.put_parameter(Name='/GoldenAMI/ContinuousScan/siteID', Type='String', Value=site_id, Overwrite=True)
     ssm.put_parameter(Name='/GoldenAMI/ContinuousScan/assessmentLink', Type='String', Value=link, Overwrite=True)
 
-    #Replace stateMachineArn with StepFunctionsStateMachine Arn
-    sfn.start_execution(stateMachineArn='string', input="{\"tag\" : \"continuous-assessment-instance\"}")
+    sfn.start_execution(stateMachineArn=sfn_arn, input="{\"tag\" : \"continuous-assessment-instance\"}")
     
     return 'Assessment started'
