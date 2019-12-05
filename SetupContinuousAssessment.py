@@ -121,7 +121,9 @@ def lambda_handler(event, context):
         images= ec2.describe_images(ImageIds=[entry],DryRun=False)
         if 'Tags' in images['Images'][0]:
             tags = images['Images'][0]['Tags']
+            name = images['Images'][0]['Name']
             tags.append({'Key': 'continuous-assessment-instance', 'Value': 'true'})
+            tags.append({'Key': 'Name', 'Value': name})
             response = ec2.run_instances(ImageId=entry,SubnetId=subnet_id,SecurityGroupIds=[sg_id],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': tags}])
         else:
             response = ec2.run_instances(ImageId=entry,SubnetId=subnet_id,SecurityGroupIds=[sg_id],InstanceType=instanceType,DryRun=False,MaxCount=1,MinCount=1,TagSpecifications=[{'ResourceType': 'instance','Tags': [{'Key': 'continuous-assessment-instance', 'Value': 'true'},{'Key': 'AMI-Type', 'Value': 'Golden'}]}])
