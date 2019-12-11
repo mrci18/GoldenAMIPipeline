@@ -83,7 +83,7 @@ read -p "The engine ID used to as the scanner: " engineID
 
 #Pipeline config
 echo -e ""
-read -p "IAM user ARN of the Golden AMI approver. The approver must have AmazonSSMAutomationApproverAccess policy associated with it's IAM Profile: " approverARN
+read -p "IAM user ARN of the Golden AMI approver. (e.g. arn:aws:iam::1234567890:user/bob@matson.com) " approverARN
 
 echo -e ""
 read -p "Your email address for receiving Inspector assessment results and golden AMI creation notification: " emailID

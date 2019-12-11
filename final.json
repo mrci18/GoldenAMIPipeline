@@ -26,7 +26,7 @@
             "Type": "String",
             "Default": "myemail@mycompany.com",
             "AllowedPattern": "([a-zA-Z0-9_\\-\\.]+)@((\\[[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.)|(([a-zA-Z0-9\\-]+\\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\\]?)",
-            "Description": "Your email ID for receiving Inspector assessment results and golden AMI creation notification."
+            "Description": "Your email address for receiving InsightVM assessment site link and golden AMI creation notification."
 
             },
         "instanceType":
@@ -618,7 +618,7 @@
                                 "\n","    bucket.delete_objects(Delete={'Objects': [{'Key': s3FilePrefix+'/versions/'+version } ] })",
                                 "\n","    ssm = boto3.client('ssm',sourceRegion)",
                                 "\n","    amiIDRegionMapping=''",
-                                "\n","    params= [prefix+'/latestInstance',prefix+'/LatestAssessmentRunARN',prefix+'/NumCVEs',prefix+'/assessmentLink',prefix+'/assessmentTemplateARN']",
+                                "\n","    params= [prefix+'/assessmentLink']",
                                 "\n","    try:",
                                 "\n","        amiIDRegionMapping =  ssm.get_parameter(Name=amiRegionMappingParamName)['Parameter']['Value']",
                                 "\n","    except botocore.exceptions.ClientError as e:",
@@ -952,8 +952,7 @@
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "ManagedPolicyArns": [
-                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",               
-                    "arn:aws:iam::aws:policy/AmazonInspectorFullAccess"
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
                 ],
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
@@ -1578,7 +1577,7 @@
                             "onFailure": "Abort",
                             "inputs": {
                                 "NotificationArn": "{{ ApproverNotificationArn }}",
-                                "Message": "Please check contents of SSM Parameter : /GoldenAMI/{{productOSAndVersion}}/{{productName}}/{{AMIVersion}}/NumCVEs and approve/deny the build.",
+                                "Message": "Please check contents of SSM Parameter : /GoldenAMI/ContinuousScan/assessmentLink and approve/deny the build.",
                                 "MinRequiredApprovals": 1,
                                 "Approvers": [
                                     "{{ ApproverUserIAMARN }}"
@@ -2300,7 +2299,7 @@
             }
         },
         "GoldenAMIAutomationDoc": {
-            "Description": "The Name of the document that creates Golden AMI and executes Inspector.",
+            "Description": "The Name of the document that creates Golden AMI and executes InsightVM scan.",
             "Value": {
                 "Ref": "GoldenAMIAutomationDoc"
             }
