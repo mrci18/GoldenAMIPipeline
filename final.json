@@ -808,6 +808,20 @@
                                         {
                                             "Effect": "Allow",
                                             "Action": [
+                                                "ssm:StartAutomationExecution"
+                                            ],
+                                            "Resource": { "Fn::Join":
+                                                [
+                                                    "",
+                                                    [
+                                                        "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":document/", {"Ref": "CopyAndShareAMI"}
+                                                    ]
+                                                ]
+                                            } 
+                                        },
+                                        {
+                                            "Effect": "Allow",
+                                            "Action": [
                                                 "ec2:DescribeNetworkInterfaces", 
                                                 "ec2:CreateNetworkInterface",
                                                 "ec2:DeleteNetworkInterface"
@@ -913,6 +927,9 @@
                                 "\n",
                                 "    def lambda_handler(event, context):",
                                 "        paramName =event['parameterName']",
+                                "        product_name = event['productName']",
+                                "        product_os_and_version = event['productOSAndVersion']",
+                                "        build_version = event['buildVersion']",
                                 "        amiIDVal=event['valueToBeCreatedOrAppended']",
                                 "        print(amiIDVal)",
                                 "        amiID=amiIDVal.replace(\"\\r\\n\",\"\n\")",
@@ -923,6 +940,7 @@
                                 "            AMIIds=AMIIdsParam['Parameter']['Value']",
                                 "            AMIIds= AMIIds+','+ amiID",
                                 "            ssm.put_parameter(Name=paramName,Type='String', Value=AMIIds,Overwrite=True)",
+                                "            ssm.start_automation_execution(DocumentName='",{"Ref": "CopyAndShareAMI"},",Parameters={'productName': product_name,'productOSAndVersion': product_os_and_version,'buildVersion': build_version})",
                                 "\n",
                                 "            if 'latest' in paramName:",
                                 "                siteIDParamName = paramName.replace('latest', 'siteID')",
@@ -1592,7 +1610,7 @@
                             "onFailure": "Abort",
                             "inputs": {
                                 "FunctionName":{ "Ref": "AppendParamLambda"},
-                                "Payload": "{\"parameterName\":\"/GoldenAMI/latest\", \"valueToBeCreatedOrAppended\":\"{{createImage.ImageId}}\"}"
+                                "Payload": "{\"parameterName\":\"/GoldenAMI/latest\", \"valueToBeCreatedOrAppended\":\"{{createImage.ImageId}}\", \"productName\": \"{{productName}}\", \"productOSAndVersion\":\"{{productOSAndVersion}}\", \"buildVersion\": \"{{AMIVersion}}\"}"
                             }
                         } 
                     ],
