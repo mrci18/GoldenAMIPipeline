@@ -39,7 +39,7 @@ function deploy_pipeline(){
         --parameter-overrides \
             ApproverUserIAMARN=${approverARN} \
             EmailID=${emailID} \
-            MetadataJSON='{"Account_ID_1":"region_1,region_2"}' \
+            MetadataJSON="${metaJSON}" \
             VPC=${vpcID} \
             buildVersion="1" \
             continuousInspectionFrequency="rate(30 days)" \
@@ -68,10 +68,10 @@ message="INFO: You are about to input sensitive data; your input will not be ech
 kmsStack="InsightVMKMS"
 read -p "AWS username to administer the KMS key (e.g. bob@matson.com): " username
 
-# # InsightVM API user config
-insightvmUser=$(echo INSIGHTVM_USERNAME)
-insightvmPass=$(echo INSIGHTVM_PASSWORD)
-insightvmEngine=$(echo INSIGHTVM_ENGINE_ID)
+# Pipeline config
+read -p "Dev Account ID: " devAcc
+metaJSON={\\\"${devAcc}\\\":\\\"us-west-2\\\"}
+
 echo -e "\n${message}"
 read -sp "Insightvm API username: " apiUser
 
@@ -94,16 +94,18 @@ read -p "The VPC ID of env that this will be launched in: " vpcID
 echo -e ""
 read -p "Subnet ID: " subnetPrivate
 
+
 ### Main ###
 deploy_kms ${kmsStack} ./InsightVMKMSKey.json
-set_secure_ssm  ${insightvmUser} ${apiUser} ${kmsStack}
-set_secure_ssm ${insightvmPass} ${apiPass} ${kmsStack}
-set_ssm ${insightvmEngine} ${engineID} "String" "The engine ID used to as the scanner"
+set_secure_ssm  INSIGHTVM_USERNAME ${apiUser} ${kmsStack}
+set_secure_ssm INSIGHTVM_PASSWORD ${apiPass} ${kmsStack}
+set_ssm INSIGHTVM_ENGINE_ID ${engineID} "String" "The engine ID used to as the scanner"
 deploy_bucket
 zip_and_upload_to_s3 RunScan
 zip_and_upload_to_s3 SetupContinuousAssessment
 aws s3 cp simpleEC2-SSMParamInput.json s3://$(aws cloudformation describe-stacks --stack-name GoldenAMIConfigBucket --query "Stacks[].Outputs[].OutputValue" --output text)/simpleEC2-SSMParamInput.json
 deploy_pipeline
+set_ssm COPY_AND_SHARE_DOC_NAME $(aws cloudformation describe-stacks --stack-name GoldenAMIPipeline --query "Stacks[].Outputs[].OutputValue" --output text | awk '{print $1}') "String" "The document name of SSM document that will copy and share AMI's"
 
 # clean up
 rm *.zip
