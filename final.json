@@ -796,14 +796,24 @@
                                                 "ssm:GetParameter*", 
                                                 "ssm:PutParameter*"
                                             ],
-                                            "Resource": { "Fn::Join":
-                                                [
-                                                    "",
+                                            "Resource": [
+                                                { "Fn::Join":
                                                     [
-                                                        "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                        "",
+                                                        [
+                                                            "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                        ]
                                                     ]
-                                                ]
-                                            } 
+                                                },
+                                                { "Fn::Join":
+                                                    [
+                                                        "",
+                                                        [
+                                                            "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
+                                                        ]
+                                                    ]
+                                                } 
+                                            ]
                                         },
                                         {
                                             "Effect": "Allow",
@@ -814,7 +824,7 @@
                                                 [
                                                     "",
                                                     [
-                                                        "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":document/", {"Ref": "CopyAndShareAMI"}
+                                                        "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":document/*CopyAndShareAMI*"
                                                     ]
                                                 ]
                                             } 
@@ -844,6 +854,14 @@
                                                         ]
                                                     ]
                                                 },
+                                                { "Fn::Join":
+                                                    [
+                                                        "",
+                                                        [
+                                                            "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
+                                                        ]
+                                                    ]
+                                                },
                                                 {
                                                     "Fn::ImportValue": "InsightVMKMSKeyArn"
                                                 }
@@ -869,88 +887,91 @@
                         "Fn::Join": [
                             "",
                             [
-                                "import urllib3",
-                                "import boto3",
-                                "import json",
-                                "import ast",
+                                "import urllib3\n",
+                                "import boto3\n",
+                                "import json\n",
+                                "import ast\n",
+                                "\n\n",
+                                "class InsightVMScanner:\n",
+                                "    def __init__(self):\n",
+                                "        self.BASE_URL = 'https://insightvm.matson.com'\n",
+                                "        self.username = self.get_ssm_params('INSIGHTVM_USERNAME')\n",
+                                "        self.password = self.get_ssm_params('INSIGHTVM_PASSWORD')\n",
+                                "        self.engine_id = self.get_ssm_params('INSIGHTVM_ENGINE_ID')\n",
+                                "\n\n",
+                                "    def get_ssm_params(self, ssm_param, decrypt=True):\n",
+                                "        print(f\"SSMParam: {ssm_param}\")\n",
+                                "        ssm = boto3.client('ssm')\n",
+                                "        response = ssm.get_parameters(\n",
+                                "            Names=[ssm_param],WithDecryption=decrypt\n",
+                                "        )\n",
+                                "        for parameter in response['Parameters']:\n",
+                                "            return parameter['Value']\n",
                                 "\n",
-                                "class InsightVMScanner:",
-                                "    def __init__(self):",
-                                "        self.BASE_URL = 'https://insightvm.matson.com'",
-                                "        self.username = self.get_ssm_params('INSIGHTVM_USERNAME')",
-                                "        self.password = self.get_ssm_params('INSIGHTVM_PASSWORD')",
-                                "        self.engine_id = self.get_ssm_params('INSIGHTVM_ENGINE_ID')",
+                                "    def format_request_params(self, request_type, url_suffix, data):\n",
+                                "        url = self.BASE_URL + url_suffix\n",
                                 "\n",
-                                "    def get_ssm_params(self, ssm_param):",
-                                "        print(f\"SSMParam: {ssm_param}\")",
-                                "        ssm = boto3.client('ssm')",
-                                "        response = ssm.get_parameters(",
-                                "            Names=[ssm_param],WithDecryption=True",
-                                "        )",
-                                "        for parameter in response['Parameters']:",
-                                "            return parameter['Value']",
+                                "        if data:\n",
+                                "            encoded_data = json.dumps(data).encode('utf-8')\n",
+                                "        else:\n",
+                                "            encoded_data = data\n",
                                 "\n",
-                                "    def format_request_params(self, request_type, url_suffix, data):",
-                                "        url = self.BASE_URL + url_suffix",
+                                "        headers = urllib3.util.make_headers(basic_auth=f'{self.username}:{self.password}')\n",
+                                "        headers['Content-Type'] = 'application/json'\n",
                                 "\n",
-                                "        if data:",
-                                "            encoded_data = json.dumps(data).encode('utf-8')",
-                                "        else:",
-                                "            encoded_data = data",
+                                "        return url, encoded_data, headers\n",
                                 "\n",
-                                "        headers = urllib3.util.make_headers(basic_auth=f'{self.username}:{self.password}')",
-                                "        headers['Content-Type'] = 'application/json'",
+                                "    def custom_request(self, request_type='GET', url_suffix='', data=None):\n",
+                                "        url, encoded_data, headers = self.format_request_params(request_type, url_suffix, data)\n",
                                 "\n",
-                                "        return url, encoded_data, headers",
+                                "        # Send request\n",
+                                "        http = urllib3.PoolManager()\n",
+                                "        r = http.request(request_type, url, body=encoded_data, headers=headers)\n",
                                 "\n",
-                                "    def custom_request(self, request_type='GET', url_suffix='', data=None):",
-                                "        url, encoded_data, headers = self.format_request_params(request_type, url_suffix, data)",
-                                "\n",
-                                "        # Send request",
-                                "        http = urllib3.PoolManager()",
-                                "        r = http.request(request_type, url, body=encoded_data, headers=headers)",
-                                "\n",
-                                "        status = r.status",
-                                "        b_results = r.data",
-                                "        results = ast.literal_eval(b_results.decode('utf-8'))",
+                                "        status = r.status\n",
+                                "        b_results = r.data\n",
+                                "        results = ast.literal_eval(b_results.decode('utf-8'))\n",
                                 "\n",        
-                                "        return status, results",
+                                "        return status, results\n",
                                 "\n",    
-                                "    def delete_site(self, site_id):",
-                                "        site_id = int(site_id)",
-                                "        status, results = self.custom_request(request_type='DELETE', url_suffix=f'/api/3/sites/{site_id}')",
+                                "    def delete_site(self, site_id):\n",
+                                "        site_id = int(site_id)\n",
+                                "        status, results = self.custom_request(request_type='DELETE', url_suffix=f'/api/3/sites/{site_id}')\n",
                                 "\n",
-                                "        if not status == 200:",
-                                "            raise SystemError(results['message'])",
+                                "        if not status == 200:\n",
+                                "            raise SystemError(results['message'])\n",
                                 "\n",
-                                "        print(f'Site {site_id} has been deleted')",
+                                "        print(f'Site {site_id} has been deleted')\n",
                                 "\n",
-                                "    def lambda_handler(event, context):",
-                                "        paramName =event['parameterName']",
-                                "        product_name = event['productName']",
-                                "        product_os_and_version = event['productOSAndVersion']",
-                                "        build_version = event['buildVersion']",
-                                "        amiIDVal=event['valueToBeCreatedOrAppended']",
-                                "        print(amiIDVal)",
+                                "    def lambda_handler(event, context):\n",
+                                "        paramName =event['parameterName']\n",
+                                "        product_name = event['productName']\n",
+                                "        product_os_and_version = event['productOSAndVersion']\n",
+                                "        build_version = event['buildVersion']\n",
+                                "        amiIDVal=event['valueToBeCreatedOrAppended']\n",
+                                "        print(amiIDVal)\n",
                                 "        amiID=amiIDVal.replace(\"\\r\\n\",\"\n\")",
-                                "        print(amiID)",
-                                "        ssm = boto3.client('ssm')",
-                                "        try:",
-                                "            AMIIdsParam =ssm.get_parameter(Name=paramName)",
-                                "            AMIIds=AMIIdsParam['Parameter']['Value']",
-                                "            AMIIds= AMIIds+','+ amiID",
-                                "            ssm.put_parameter(Name=paramName,Type='String', Value=AMIIds,Overwrite=True)",
-                                "            ssm.start_automation_execution(DocumentName='",{"Ref": "CopyAndShareAMI"},",Parameters={'productName': product_name,'productOSAndVersion': product_os_and_version,'buildVersion': build_version})",
+                                "        print(amiID)\n",
+                                "        ssm = boto3.client('ssm')\n",
                                 "\n",
-                                "            if 'latest' in paramName:",
-                                "                siteIDParamName = paramName.replace('latest', 'siteID')",
-                                "                site_id = ssm.get_parameter(Name=siteIDParamName)",
-                                "                InsightVMScanner().delete_site(site_id)",
+                                "        try:\n",
+                                "            AMIIdsParam =ssm.get_parameter(Name=paramName)\n",
+                                "            AMIIds=AMIIdsParam['Parameter']['Value']\n",
+                                "            AMIIds= AMIIds+','+ amiID\n",
+                                "            scanner = InsightVMScanner()\n",
+                                "            document_name = scanner.get_ssm_params('COPY_AND_SHARE_DOC_NAME', decrypt=False)\n",
+                                "            ssm.put_parameter(Name=paramName,Type='String', Value=AMIIds,Overwrite=True)\n",
+                                "            ssm.start_automation_execution(DocumentName=document_name,Parameters={'productName': product_name,'productOSAndVersion': product_os_and_version,'buildVersion': build_version})\n",
+                                "\n",
+                                "            if 'latest' in paramName:\n",
+                                "                siteIDParamName = paramName.replace('latest', 'siteID')\n",
+                                "                site_id = ssm.get_parameter(Name=siteIDParamName)\n",
+                                "                scanner.delete_site(site_id)\n",
                                 "\n",                
-                                "        except botocore.exceptions.ClientError as e:",
-                                "            if e.response['Error']['Code'] == 'ParameterNotFound':",
-                                "                ssm.put_parameter(Name=paramName,Type='String', Value=amiID,Overwrite=True)",
-                                "        return 'appended parameter %s with value %s.' % (paramName,amiID)"
+                                "        except botocore.exceptions.ClientError as e:\n",
+                                "            if e.response['Error']['Code'] == 'ParameterNotFound':\n",
+                                "                ssm.put_parameter(Name=paramName,Type='String', Value=amiID,Overwrite=True)\n",
+                                "        return 'appended parameter %s with value %s.' % (paramName,amiID)\n"
                             ]
                         ]
                     }
@@ -1003,14 +1024,24 @@
                                         "ssm:GetParameter*", 
                                         "ssm:PutParameter*"
                                     ],
-                                    "Resource": { "Fn::Join":
-                                        [
-                                            "",
+                                    "Resource": [
+                                        { "Fn::Join":
                                             [
-                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                "",
+                                                [
+                                                    "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                ]
                                             ]
-                                        ]
-                                    } 
+                                        },
+                                        { "Fn::Join":
+                                            [
+                                                "",
+                                                [
+                                                    "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
+                                                ]
+                                            ]
+                                        }
+                                    ]
                                 },
                                 {
                                     "Effect": "Allow",
@@ -1034,6 +1065,14 @@
                                                 "",
                                                 [
                                                     "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                ]
+                                            ]
+                                        },
+                                        { 
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
                                                 ]
                                             ]
                                         },
@@ -2152,14 +2191,24 @@
                                     "ssm:GetParameter*", 
                                     "ssm:PutParameter*"
                                 ],
-                                "Resource": { "Fn::Join":
-                                    [
-                                        "",
+                                "Resource": [
+                                    { "Fn::Join":
                                         [
-                                            "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                            "",
+                                            [
+                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                            ]
                                         ]
-                                    ]
-                                } 
+                                    },
+                                    { "Fn::Join":
+                                        [
+                                            "",
+                                            [
+                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
+                                            ]
+                                        ]
+                                    }
+                                ]
                             },
                             {
                                 "Effect": "Allow",
@@ -2169,11 +2218,19 @@
                                     "kms:GenerateDataKey"
                                 ],
                                 "Resource": [
+                                    { "Fn::Join":
+                                        [
+                                            "",
+                                            [
+                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                            ]
+                                        ]
+                                    },
                                     { 
                                         "Fn::Join": [
                                             "",
                                             [
-                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/GoldenAMI/*"
+                                                "arn:aws:ssm:","*",":",{"Ref":"AWS::AccountId"},":parameter/INSIGHTVM*"
                                             ]
                                         ]
                                     },
